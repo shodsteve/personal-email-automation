@@ -1,0 +1,265 @@
+{
+  "workflowName": "Personal Email Automation System",
+  "workflowId": "email-automation-system-v1",
+  "sourceType": "Visual Reconstruction from Diagram",
+  "description": "Intelligent email triage and draft generation system. Automatically classifies incoming emails, applies labels, generates contextual reply drafts, and optionally creates calendar events. Draft-only mode ensures human review before any action.",
+  "createdAt": "2026-08-17T00:00:00.000Z",
+  "purpose": "Email triage automation with AI-powered classification and draft generation",
+  "stats": {
+    "nodes": 18,
+    "triggers": 1,
+    "workflows": "Multi-stage pipeline"
+  },
+  "features": [
+    "Gmail trigger on new emails",
+    "Email content cleaning and normalization",
+    "AI email classification (OpenAI GPT)",
+    "Automatic Gmail label application",
+    "AI draft reply generation",
+    "Calendar event creation (optional)",
+    "Error handling and logging",
+    "Draft-only mode (no auto-sends)",
+    "Header detection for reply necessity",
+    "Modular design for extensibility"
+  ],
+  "workflow_flow": {
+    "stage_1_receive": "Gmail webhook triggers on new email",
+    "stage_2_clean": "Extract and normalize email content (remove HTML, formatting)",
+    "stage_3_classify": "OpenAI GPT analyzes email and classifies intent (reply_needed, archive, action_required, etc.)",
+    "stage_4_label": "Map classification to Gmail labels and apply",
+    "stage_5_check_headers": "Detect if email requires a reply based on headers + classification",
+    "stage_6_split": "Split into two tracks: Reply-needed vs No-reply",
+    "stage_7_draft": "AI generates contextual reply draft (Claude or OpenAI)",
+    "stage_8_calendar": "If event-related, create calendar entry",
+    "stage_9_review": "Store draft for manual review (never auto-sends)",
+    "stage_10_error": "Catch and log any failures"
+  },
+  "nodes": [
+    {
+      "name": "New Email Received",
+      "type": "Gmail Trigger",
+      "description": "Webhook triggered when a new email arrives in inbox",
+      "outputs": ["email_content", "from", "subject", "headers", "timestamp"]
+    },
+    {
+      "name": "Clean Email Content",
+      "type": "Code Node",
+      "description": "Remove HTML tags, clean formatting, extract plain text and key metadata",
+      "logic": "Strip HTML → Extract headers → Normalize whitespace → Flag attachments"
+    },
+    {
+      "name": "Classify Email",
+      "type": "OpenAI GPT Node",
+      "description": "AI analyzes email and assigns classification label",
+      "classifications": [
+        "reply_needed",
+        "archive",
+        "action_required",
+        "follow_up",
+        "informational",
+        "spam",
+        "urgent"
+      ],
+      "model": "gpt-4o-mini or gpt-3.5-turbo"
+    },
+    {
+      "name": "Map Classifications to Labels/Bins",
+      "type": "Switch/Router Node",
+      "description": "Route email to appropriate Gmail labels based on classification",
+      "routes": {
+        "reply_needed": "[Gmail]/Reply Needed",
+        "action_required": "[Gmail]/Action Required",
+        "follow_up": "[Gmail]/Follow-up",
+        "archive": "[Gmail]/Archive",
+        "urgent": "[Gmail]/Urgent"
+      }
+    },
+    {
+      "name": "Check Headers Reply",
+      "type": "Code Node",
+      "description": "Analyze email headers to determine if reply is necessary",
+      "checks": [
+        "Is this a reply to user's email?",
+        "Does sender expect a response?",
+        "Is this a mailing list?"
+      ]
+    },
+    {
+      "name": "Split Classifications/Labels",
+      "type": "If/Else Node",
+      "description": "Branch: route to reply generation OR archive",
+      "condition": "classification === 'reply_needed' && needsReply === true"
+    },
+    {
+      "name": "Apply Classification Labels",
+      "type": "Gmail Node",
+      "description": "Apply computed labels to email in Gmail",
+      "action": "label_email",
+      "labels": ["Classification", "Status", "Priority"]
+    },
+    {
+      "name": "Generate Reply Draft",
+      "type": "OpenAI/Claude Node",
+      "description": "AI generates a contextual reply based on email content and user preferences",
+      "prompt_includes": [
+        "Email subject and body",
+        "Sender's tone and style",
+        "User's signature and preferences",
+        "Previous conversation history (if available)"
+      ],
+      "output": "draft_reply_text"
+    },
+    {
+      "name": "Check Calendar/Confirming Enabled",
+      "type": "Code Node",
+      "description": "Detect if email references a meeting/event or needs calendar action",
+      "detects": [
+        "Meeting requests",
+        "Dates and times in email",
+        "Calendar-related keywords"
+      ]
+    },
+    {
+      "name": "Create Calendar Event",
+      "type": "Google Calendar Node",
+      "description": "If event detected, create calendar entry automatically",
+      "fields": ["title", "date_time", "attendees", "description"]
+    },
+    {
+      "name": "Create Smart Event",
+      "type": "Calendar Node",
+      "description": "Create event with smart parsing of dates/times from email",
+      "ai_parsing": true
+    },
+    {
+      "name": "Generate Reply Draft Mode",
+      "type": "Code Node",
+      "description": "Finalize reply draft for manual review",
+      "mode": "draft_only (never auto-sends)"
+    },
+    {
+      "name": "Apply Smart Labels",
+      "type": "Gmail Node",
+      "description": "Apply secondary smart labels based on content analysis",
+      "labels": ["Project Name", "Client", "Priority Level"]
+    },
+    {
+      "name": "Apply Automation Error",
+      "type": "Error Handler",
+      "description": "Catch any errors and log them for debugging",
+      "logs": ["error_type", "node_failed", "email_id", "timestamp"]
+    },
+    {
+      "name": "OpenAI/GPT Model",
+      "type": "Credential Node",
+      "description": "OpenAI API connection for classification and draft generation"
+    },
+    {
+      "name": "Classification Workflows",
+      "type": "Sub-workflow",
+      "description": "Modular sub-workflows for specific classification types (urgent, spam, etc.)"
+    }
+  ],
+  "integrations": {
+    "email": "Gmail API",
+    "ai_classification": "OpenAI GPT-4/3.5-turbo",
+    "ai_drafts": "OpenAI or Claude (switchable)",
+    "calendar": "Google Calendar API",
+    "storage": "Notion or internal n8n database"
+  },
+  "configuration_required": {
+    "gmail_labels": [
+      "Create in Gmail: [Gmail]/Reply Needed",
+      "Create in Gmail: [Gmail]/Action Required",
+      "Create in Gmail: [Gmail]/Follow-up",
+      "Create in Gmail: [Gmail]/Archive",
+      "Create in Gmail: [Gmail]/Urgent",
+      "Create in Gmail: [Gmail]/Informational",
+      "Create in Gmail: [Gmail]/Spam"
+    ],
+    "credentials": [
+      "Gmail OAuth2 token",
+      "OpenAI API key",
+      "Google Calendar API key (optional)",
+      "Claude API key (optional, if using for drafts)"
+    ],
+    "configuration": [
+      "User's email signature",
+      "Reply tone preferences (formal, casual, friendly)",
+      "Default calendar for events",
+      "Label mapping (custom labels)",
+      "Automation rules (which classifications trigger which actions)"
+    ]
+  },
+  "setupInstructions": {
+    "step_1": "Create Gmail labels in your Gmail account (via Settings → Labels → Create new label)",
+    "step_2": "Add n8n OAuth2 credentials for Gmail API",
+    "step_3": "Add OpenAI API key to n8n credentials",
+    "step_4": "Configure email signature and reply tone in Global Config",
+    "step_5": "Set up Google Calendar API (optional, for auto-event creation)",
+    "step_6": "Test with a sample email using 'Test Workflow' button",
+    "step_7": "Enable Gmail webhook trigger to activate automation"
+  },
+  "draftOnlyMode": {
+    "description": "Workflow generates draft replies but NEVER auto-sends",
+    "purpose": "Human review ensures quality and appropriateness before sending",
+    "draft_storage": "Stored in Notion or Google Drive for manual review",
+    "user_workflow": "1. Review draft 2. Edit if needed 3. Send manually from Gmail"
+  },
+  "extensibility": {
+    "modular_design": "Each stage can be extended or replaced",
+    "possible_extensions": [
+      "Slack notifications for urgent emails",
+      "Auto-tagging in Notion CRM",
+      "Automated follow-up scheduling",
+      "Integration with project management tools",
+      "Sentiment analysis for tone detection",
+      "Multi-language support",
+      "Custom classification rules per project/client"
+    ]
+  },
+  "error_handling": {
+    "email_parsing_failed": "Log error, skip draft generation, send alert",
+    "api_rate_limit": "Retry with exponential backoff",
+    "calendar_creation_failed": "Log error, continue with email classification",
+    "authentication_error": "Pause workflow, require manual re-auth"
+  },
+  "performance": {
+    "average_time_per_email": "5-10 seconds",
+    "ai_calls_per_email": "2 (classification + draft generation)",
+    "gmail_api_calls_per_email": "3-5 (read, label, search history)"
+  },
+  "github_friendly_name": "personal-email-automation",
+  "github_description": "📧 Personal Email Automation System | AI-powered email classification, smart labeling, draft reply generation | Draft-only mode for safety | OpenAI + Gmail + Google Calendar",
+  "tags": [
+    "email-automation",
+    "ai",
+    "gmail",
+    "productivity",
+    "n8n",
+    "openai",
+    "email-triage",
+    "draft-generation"
+  ],
+  "safety_features": [
+    "Draft-only mode - never auto-sends emails",
+    "Manual review required before any action",
+    "Error logging for all failures",
+    "Rate limiting to prevent API abuse",
+    "Header analysis to prevent reply-all mistakes"
+  ],
+  "future_roadmap": [
+    "Multi-account support",
+    "Custom AI model fine-tuning per user",
+    "Advanced scheduling (send at optimal time)",
+    "A/B testing different reply tones",
+    "Integration with CRM (HubSpot, Salesforce)",
+    "Mobile app for draft review"
+  ],
+  "backup_metadata": {
+    "exported_at": "2026-08-26T12:00:00Z",
+    "backup_tool": "Claude AI from visual reconstruction",
+    "source": "Workflow diagram screenshot",
+    "status": "Template/Reference"
+  }
+}
